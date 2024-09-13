@@ -1,0 +1,13 @@
+[project]
+name = "syngen"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.34.2",
+    "instructor>=1.4.1",
+    "openai>=1.45.0",
+    "pydantic>=2.9.1",
+    "tenacity>=8.5.0",
+]
