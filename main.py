@@ -1,8 +1,7 @@
 import argparse
 import json
 import logging
-import time
-from typing import List, Dict, Any
+from typing import List
 
 import instructor
 from openai import OpenAI
@@ -10,13 +9,19 @@ from anthropic import Anthropic
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MIN_SCORE = 90
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Initialize API clients with Instructor
-openai_client = instructor.patch(OpenAI())
-anthropic_client = instructor.patch(Anthropic())
+openai_client = instructor.from_openai(OpenAI())
+anthropic_client = instructor.from_anthropic(Anthropic())
 
 class Message(BaseModel):
     role: str
@@ -72,7 +77,7 @@ def judge_example(description: str, example: str, generated_example: Conversatio
 
     Original Example: {example}
 
-    Generated Example: {json.dumps(generated_example.dict())}
+    Generated Example: {json.dumps(generated_example.model_dump())}
 
     Please score the generated example on the following criteria:
     1. Accuracy (1-10): How well does it match the original description?
@@ -111,9 +116,9 @@ def calculate_final_score(scores: List[JudgeScore]) -> float:
 def main():
     args = parse_arguments()
     
-    dataset = []
-    few_shot_examples = []
-    judge_models = ["gpt-4-0125-preview", "claude-3-sonnet-20240229", "claude-3-sonnet-20240229"]
+    dataset: List[Conversation] = []
+    few_shot_examples: List[Conversation] = []
+    judge_models = ["gpt-4o-2024-08-06", "gpt-4o-2024-08-06", "claude-3-sonnet-20240229"]
     
     try:
         while len(dataset) < args.num_examples:
@@ -122,7 +127,7 @@ def main():
             scores = [judge_example(args.description, args.example, generated_example, model) for model in judge_models]
             final_score = calculate_final_score(scores)
             
-            threshold = 0.95 * (40 * len(judge_models))  # 95% of max possible score
+            threshold = (MIN_SCORE / 100) * (40 * len(judge_models))  # x % of max possible score
             
             if final_score >= threshold:
                 dataset.append(generated_example)
@@ -141,11 +146,10 @@ def main():
     finally:
         with open(args.output_file, 'w') as f:
             for example in dataset:
-                json.dump(example.dict(), f)
+                json.dump(example.model_dump(), f)
                 f.write('\n')
         
         logger.info(f"Generated {len(dataset)} examples. Saved to {args.output_file}")
 
 if __name__ == "__main__":
     main()
-
